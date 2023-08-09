@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Image Bounding Box Drawing</title>
+</head>
+<body>
+  <input type="file" id="imageInput">
+  <div style="position: relative;">
+    <canvas id="imageCanvas"></canvas>
+  </div>
+  <button id="saveButton">Save Bounding Boxes</button>
+  <pre id="jsonData"></pre>
+
+  <script>
+    const imageInput = document.getElementById('imageInput');
+    const imageCanvas = document.getElementById('imageCanvas');
+    const ctx = imageCanvas.getContext('2d');
+    const canvasWidth = 800;  // Adjust as needed
+    const canvasHeight = 600; // Adjust as needed
+    let image;
+    let isDrawing = false;
+    let startX, startY;
+    let bboxWidth = 0;
+    let bboxHeight = 0;
+    const boundingBoxes = [];
+
+    imageInput.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (file && file.type.startsWith('image')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          image = new Image();
+          image.src = e.target.result;
+          image.onload = () => {
+            const scale = Math.min(canvasWidth / image.width, canvasHeight / image.height);
+            const scaledWidth = image.width * scale;
+            const scaledHeight = image.height * scale;
+            imageCanvas.width = scaledWidth;
+            imageCanvas.height = scaledHeight;
+            ctx.drawImage(image, 0, 0, scaledWidth, scaledHeight);
+          };
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    function drawBoundingBox(x, y, width, height) {
+      ctx.strokeStyle = 'red';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.rect(x, y, width, height);
+      ctx.stroke();
+    }
+
+    imageCanvas.addEventListener('mousedown', (event) => {
+      isDrawing = true;
+      startX = event.clientX - imageCanvas.getBoundingClientRect().left;
+      startY = event.clientY - imageCanvas.getBoundingClientRect().top;
+      bboxWidth = 0;
+      bboxHeight = 0;
+    });
+
+    imageCanvas.addEventListener('mousemove', (event) => {
+      if (!isDrawing) return;
+      const mouseX = event.clientX - imageCanvas.getBoundingClientRect().left;
+      const mouseY = event.clientY - imageCanvas.getBoundingClientRect().top;
+      bboxWidth = mouseX - startX;
+      bboxHeight = mouseY - startY;
+      ctx.clearRect(0, 0, imageCanvas.width, imageCanvas.height);
+      ctx.drawImage(image, 0, 0, imageCanvas.width, imageCanvas.height);  // Draw scaled image
+      for (const box of boundingBoxes) {
+        drawBoundingBox(box.x, box.y, box.width, box.height);
+      }
+      drawBoundingBox(startX, startY, bboxWidth, bboxHeight);
+    });
+
+    imageCanvas.addEventListener('mouseup', () => {
+      isDrawing = false;
+      if (bboxWidth !== 0 && bboxHeight !== 0) {
+        boundingBoxes.push({
+          x: startX,
+          y: startY,
+          width: bboxWidth,
+          height: bboxHeight
+        });
+      }
+    });
+
+    // Save button event listener
+    const saveButton = document.getElementById('saveButton');
+    saveButton.addEventListener('click', () => {
+      const jsonData = JSON.stringify(boundingBoxes, null, 2);
+      document.getElementById('jsonData').textContent = jsonData;
+
+      const blob = new Blob([jsonData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'bounding_boxes.json';
+      a.click();
+    });
+  </script>
+</body>
+</html>
