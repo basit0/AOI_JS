@@ -15,13 +15,10 @@
     const imageInput = document.getElementById('imageInput');
     const imageCanvas = document.getElementById('imageCanvas');
     const ctx = imageCanvas.getContext('2d');
-    const canvasWidth = 800;  // Adjust as needed
-    const canvasHeight = 600; // Adjust as needed
     let image;
     let isDrawing = false;
     let startX, startY;
-    let bboxWidth = 0;
-    let bboxHeight = 0;
+    let endX, endY;
     const boundingBoxes = [];
 
     imageInput.addEventListener('change', (event) => {
@@ -32,12 +29,9 @@
           image = new Image();
           image.src = e.target.result;
           image.onload = () => {
-            const scale = Math.min(canvasWidth / image.width, canvasHeight / image.height);
-            const scaledWidth = image.width * scale;
-            const scaledHeight = image.height * scale;
-            imageCanvas.width = scaledWidth;
-            imageCanvas.height = scaledHeight;
-            ctx.drawImage(image, 0, 0, scaledWidth, scaledHeight);
+            imageCanvas.width = image.width;
+            imageCanvas.height = image.height;
+            ctx.drawImage(image, 0, 0, image.width, image.height);
           };
         };
         reader.readAsDataURL(file);
@@ -54,34 +48,34 @@
 
     imageCanvas.addEventListener('mousedown', (event) => {
       isDrawing = true;
-      startX = event.clientX - imageCanvas.getBoundingClientRect().left;
-      startY = event.clientY - imageCanvas.getBoundingClientRect().top;
-      bboxWidth = 0;
-      bboxHeight = 0;
+      startX = event.offsetX;
+      startY = event.offsetY;
     });
 
     imageCanvas.addEventListener('mousemove', (event) => {
       if (!isDrawing) return;
-      const mouseX = event.clientX - imageCanvas.getBoundingClientRect().left;
-      const mouseY = event.clientY - imageCanvas.getBoundingClientRect().top;
-      bboxWidth = mouseX - startX;
-      bboxHeight = mouseY - startY;
+      endX = event.offsetX;
+      endY = event.offsetY;
       ctx.clearRect(0, 0, imageCanvas.width, imageCanvas.height);
-      ctx.drawImage(image, 0, 0, imageCanvas.width, imageCanvas.height);  // Draw scaled image
+      ctx.drawImage(image, 0, 0, imageCanvas.width, imageCanvas.height);
       for (const box of boundingBoxes) {
         drawBoundingBox(box.x, box.y, box.width, box.height);
       }
-      drawBoundingBox(startX, startY, bboxWidth, bboxHeight);
+      drawBoundingBox(startX, startY, endX - startX, endY - startY);
     });
 
     imageCanvas.addEventListener('mouseup', () => {
       isDrawing = false;
-      if (bboxWidth !== 0 && bboxHeight !== 0) {
+      if (endX !== undefined && endY !== undefined) {
+        const x1 = Math.min(startX, endX);
+        const y1 = Math.min(startY, endY);
+        const x2 = Math.max(startX, endX);
+        const y2 = Math.max(startY, endY);
         boundingBoxes.push({
-          x: startX,
-          y: startY,
-          width: bboxWidth,
-          height: bboxHeight
+          x: x1,
+          y: y1,
+          width: x2 - x1,
+          height: y2 - y1
         });
       }
     });
@@ -89,14 +83,22 @@
     // Save button event listener
     const saveButton = document.getElementById('saveButton');
     saveButton.addEventListener('click', () => {
-      const jsonData = JSON.stringify(boundingBoxes, null, 2);
+      const formattedBoundingBoxes = boundingBoxes.map(box => {
+        const x1 = box.x;
+        const y1 = box.y;
+        const x2 = box.x + box.width;
+        const y2 = box.y + box.height;
+        return `(${x1}, ${y1}), (${x2}, ${y2})`;
+      });
+
+      const jsonData = formattedBoundingBoxes.join('\n');
       document.getElementById('jsonData').textContent = jsonData;
 
-      const blob = new Blob([jsonData], { type: 'application/json' });
+      const blob = new Blob([jsonData], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'bounding_boxes.json';
+      a.download = 'bounding_boxes.txt';
       a.click();
     });
   </script>
